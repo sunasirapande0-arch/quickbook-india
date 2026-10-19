@@ -1,0 +1,723 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>QuickBook India — All-in-One Appointment Booking</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body class="bg-slate-50 text-slate-900 min-h-screen pb-20 font-sans">
+
+  <!-- TOP NAVBAR -->
+  <header class="bg-indigo-700 text-white sticky top-0 z-40 shadow-md">
+    <div class="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
+      <div>
+        <h1 class="text-lg font-bold tracking-tight flex items-center gap-1.5">
+          <span>⚡</span> <span id="appTitle">QuickBook India</span>
+        </h1>
+        <p id="appSubtitle" class="text-xs text-indigo-200">India's All-in-One Appointment Platform</p>
+      </div>
+      <div class="flex items-center gap-2">
+        <button onclick="toggleLang()" id="langBtn" class="bg-indigo-600 hover:bg-indigo-500 border border-indigo-400 text-xs font-semibold px-3 py-1.5 rounded-full">
+          हिंदी / EN
+        </button>
+      </div>
+    </div>
+
+    <!-- ROLE SWITCHER TABS -->
+    <nav class="bg-indigo-800 text-indigo-100 text-xs font-medium">
+      <div class="max-w-4xl mx-auto flex overflow-x-auto">
+        <button onclick="switchTab('customer')" id="tabBtn-customer" class="flex-1 py-2.5 px-3 border-b-2 border-white text-white font-bold whitespace-nowrap">
+          🔍 <span data-i18n="tab_customer">Customer</span>
+        </button>
+        <button onclick="switchTab('mybookings')" id="tabBtn-mybookings" class="flex-1 py-2.5 px-3 border-b-2 border-transparent hover:text-white whitespace-nowrap">
+          📅 <span data-i18n="tab_mybookings">My Bookings</span>
+        </button>
+        <button onclick="switchTab('owner')" id="tabBtn-owner" class="flex-1 py-2.5 px-3 border-b-2 border-transparent hover:text-white whitespace-nowrap">
+          🏪 <span data-i18n="tab_owner">Business Owner</span>
+        </button>
+        <button onclick="switchTab('staff')" id="tabBtn-staff" class="flex-1 py-2.5 px-3 border-b-2 border-transparent hover:text-white whitespace-nowrap">
+          👨‍💼 <span data-i18n="tab_staff">Staff</span>
+        </button>
+        <button onclick="switchTab('admin')" id="tabBtn-admin" class="flex-1 py-2.5 px-3 border-b-2 border-transparent hover:text-white whitespace-nowrap">
+          🛡️ <span data-i18n="tab_admin">Admin</span>
+        </button>
+      </div>
+    </nav>
+  </header>
+
+  <!-- GLOBAL STATUS BANNER -->
+  <div id="statusBanner" class="hidden max-w-4xl mx-auto mt-3 px-4">
+    <div id="statusBox" class="p-3 rounded-lg text-sm font-medium flex justify-between items-center shadow-sm">
+      <span id="statusText"></span>
+      <button onclick="hideStatus()" class="ml-3 font-bold text-lg leading-none">&times;</button>
+    </div>
+  </div>
+
+  <!-- MAIN CONTAINER -->
+  <main class="max-w-4xl mx-auto px-4 pt-4 space-y-6">
+
+    <!-- ==================== 1. CUSTOMER DISCOVERY VIEW ==================== -->
+    <section id="view-customer" class="space-y-4">
+      <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 space-y-3">
+        <h2 class="font-bold text-base text-slate-800" data-i18n="find_title">Find & Book Appointments Near You</h2>
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+          <select id="filterCategory" onchange="renderBusinesses()" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white">
+            <option value="">All Categories (सभी श्रेणियां)</option>
+          </select>
+          <input type="text" id="filterLocation" oninput="renderBusinesses()" placeholder="City or 6-digit PIN (e.g. 751001)" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
+          <input type="text" id="filterSearch" oninput="renderBusinesses()" placeholder="Search shop or service name..." class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
+        </div>
+      </div>
+
+      <!-- BUSINESS LISTINGS -->
+      <div id="businessList" class="space-y-3">
+        <p class="text-center text-slate-500 py-8 text-sm">Loading businesses from cloud database...</p>
+      </div>
+    </section>
+
+    <!-- ==================== 2. CUSTOMER MY BOOKINGS VIEW ==================== -->
+    <section id="view-mybookings" class="hidden space-y-4">
+      <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 space-y-3">
+        <h2 class="font-bold text-base" data-i18n="lookup_title">Check Your Booking Status</h2>
+        <div class="flex gap-2">
+          <input type="tel" id="lookupPhone" maxlength="10" placeholder="Enter 10-digit mobile number" class="flex-1 border border-slate-300 rounded-lg px-3 py-2 text-sm" />
+          <button onclick="loadCustomerBookings()" class="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-semibold">Search</button>
+        </div>
+      </div>
+      <div id="customerBookingsList" class="space-y-3"></div>
+    </section>
+
+    <!-- ==================== 3. BUSINESS OWNER DASHBOARD ==================== -->
+    <section id="view-owner" class="hidden space-y-6">
+      <!-- Select Active Business or Create New -->
+      <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 space-y-3">
+        <h2 class="font-bold text-base text-slate-800" data-i18n="owner_panel_title">Business Owner Dashboard</h2>
+        <p class="text-xs text-slate-500">Select an existing business to manage appointments & services, or register a new business below.</p>
+        <select id="ownerBusinessSelect" onchange="loadOwnerDashboard()" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white font-medium"></select>
+      </div>
+
+      <!-- Manage Bookings for Selected Business -->
+      <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 space-y-3">
+        <div class="flex justify-between items-center">
+          <h3 class="font-bold text-sm text-slate-800">📲 Incoming Customer Appointments</h3>
+          <button onclick="loadOwnerDashboard()" class="text-xs text-indigo-600 font-semibold underline">Refresh</button>
+        </div>
+        <div id="ownerBookingsList" class="space-y-2.5 text-sm"></div>
+      </div>
+
+      <!-- Add Service to Selected Business -->
+      <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 space-y-3">
+        <h3 class="font-bold text-sm text-slate-800">➕ Add a New Service & Price (₹)</h3>
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+          <input type="text" id="newServiceName" placeholder="Service Name (e.g. Haircut / Consultation)" class="border border-slate-300 rounded-lg px-3 py-2 text-sm" />
+          <input type="number" id="newServiceDuration" placeholder="Duration in mins (e.g. 30)" value="30" class="border border-slate-300 rounded-lg px-3 py-2 text-sm" />
+          <input type="number" id="newServicePrice" placeholder="Price in ₹ (e.g. 299)" class="border border-slate-300 rounded-lg px-3 py-2 text-sm" />
+        </div>
+        <button onclick="addService()" class="w-full sm:w-auto bg-emerald-600 text-white px-4 py-2 rounded-lg text-sm font-semibold">Save Service</button>
+      </div>
+
+      <!-- Register New Business -->
+      <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 space-y-3">
+        <h3 class="font-bold text-sm text-slate-800">🏪 Register a New Business on QuickBook India</h3>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+          <input type="text" id="regBizName" placeholder="Business / Clinic / Salon Name *" class="border border-slate-300 rounded-lg px-3 py-2 text-sm" />
+          <select id="regBizCategory" class="border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white"></select>
+          <input type="email" id="regBizEmail" placeholder="Owner Email *" class="border border-slate-300 rounded-lg px-3 py-2 text-sm" />
+          <input type="tel" id="regBizPhone" maxlength="10" placeholder="10-Digit WhatsApp Phone *" class="border border-slate-300 rounded-lg px-3 py-2 text-sm" />
+          <input type="text" id="regBizCity" placeholder="City (e.g. Bhubaneswar, Delhi) *" class="border border-slate-300 rounded-lg px-3 py-2 text-sm" />
+          <input type="text" id="regBizPincode" maxlength="6" placeholder="6-Digit PIN Code (e.g. 751001) *" class="border border-slate-300 rounded-lg px-3 py-2 text-sm" />
+          <input type="text" id="regBizAddress" placeholder="Full Street Address / Landmark *" class="border border-slate-300 rounded-lg px-3 py-2 text-sm sm:col-span-2" />
+          <div class="flex items-center gap-2">
+            <label class="text-xs text-slate-600 w-24">Open Time:</label>
+            <input type="time" id="regBizOpen" value="09:00" class="flex-1 border border-slate-300 rounded-lg px-3 py-1.5 text-sm" />
+          </div>
+          <div class="flex items-center gap-2">
+            <label class="text-xs text-slate-600 w-24">Close Time:</label>
+            <input type="time" id="regBizClose" value="20:00" class="flex-1 border border-slate-300 rounded-lg px-3 py-1.5 text-sm" />
+          </div>
+        </div>
+        <button onclick="registerBusiness()" class="w-full bg-indigo-600 text-white py-2.5 rounded-lg text-sm font-bold">Register Business</button>
+      </div>
+    </section>
+
+    <!-- ==================== 4. STAFF VIEW ==================== -->
+    <section id="view-staff" class="hidden space-y-4">
+      <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 space-y-3">
+        <h2 class="font-bold text-base text-slate-800">👨‍💼 Staff Roster & Daily Schedule</h2>
+        <select id="staffBusinessSelect" onchange="loadStaffView()" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white"></select>
+        <div class="flex gap-2 pt-2">
+          <input type="text" id="newStaffName" placeholder="Staff Name (e.g. Dr. Sharma / Ravi)" class="flex-1 border border-slate-300 rounded-lg px-3 py-2 text-sm" />
+          <input type="text" id="newStaffRole" placeholder="Role (e.g. Senior Stylist)" class="flex-1 border border-slate-300 rounded-lg px-3 py-2 text-sm" />
+          <button onclick="addStaffMember()" class="bg-indigo-600 text-white px-3 py-2 rounded-lg text-xs font-bold">Add Staff</button>
+        </div>
+        <div id="staffList" class="space-y-2 pt-2"></div>
+      </div>
+    </section>
+
+    <!-- ==================== 5. PLATFORM ADMIN VIEW ==================== -->
+    <section id="view-admin" class="hidden space-y-4">
+      <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 space-y-3">
+        <h2 class="font-bold text-base text-slate-800">🛡️ Platform Administrator Overview</h2>
+        <div id="adminStats" class="grid grid-cols-3 gap-2 text-center"></div>
+        <h3 class="font-bold text-xs text-slate-600 uppercase pt-3">Privacy & Data Deletion Requests (DPDP Compliance)</h3>
+        <div id="adminDeletionList" class="space-y-2 text-xs"></div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ==================== BOOKING MODAL ==================== -->
+  <div id="bookingModal" class="hidden fixed inset-0 bg-black/60 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+    <div class="bg-white w-full max-w-lg rounded-t-2xl sm:rounded-2xl p-5 space-y-4 max-h-[90vh] overflow-y-auto">
+      <div class="flex justify-between items-start border-b pb-3">
+        <div>
+          <h3 id="modalBizName" class="font-bold text-base text-slate-900"></h3>
+          <p id="modalBizMeta" class="text-xs text-slate-500"></p>
+        </div>
+        <button onclick="closeBookingModal()" class="text-slate-400 hover:text-slate-700 text-2xl leading-none">&times;</button>
+      </div>
+
+      <!-- Step 1: Choose Service -->
+      <div>
+        <label class="block text-xs font-bold text-slate-700 mb-1">1. Select Service *</label>
+        <select id="modalServiceSelect" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white"></select>
+      </div>
+
+      <!-- Step 2: Choose Date -->
+      <div>
+        <label class="block text-xs font-bold text-slate-700 mb-1">2. Select Appointment Date *</label>
+        <input type="date" id="modalDate" onchange="loadAvailableSlots()" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
+      </div>
+
+      <!-- Step 3: Choose Time Slot -->
+      <div>
+        <label class="block text-xs font-bold text-slate-700 mb-1">3. Tap an Available Time Slot *</label>
+        <div id="modalSlotsGrid" class="grid grid-cols-3 gap-2 pt-1"></div>
+        <input type="hidden" id="selectedSlotTime" />
+      </div>
+
+      <!-- Step 4: Customer Details -->
+      <div class="space-y-2.5 pt-2 border-t">
+        <input type="text" id="custName" placeholder="Your Full Name *" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
+        <input type="tel" id="custPhone" maxlength="10" placeholder="10-Digit Mobile Number (starting 6-9) *" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
+        <input type="text" id="custNotes" placeholder="Optional note (Do NOT enter sensitive medical records)" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
+        <div class="bg-amber-50 border border-amber-200 p-2.5 rounded-lg text-xs text-amber-800">
+          🔒 <strong>Privacy & Healthcare Safeguard:</strong> Do not type confidential medical history, lab reports, or passwords. Only basic scheduling info is collected.
+        </div>
+        <label class="flex items-start gap-2 text-xs text-slate-600">
+          <input type="checkbox" id="custConsent" checked class="mt-0.5" />
+          <span>I agree to share my name & phone number with this business for appointment updates under QuickBook India's Privacy Policy.</span>
+        </label>
+      </div>
+
+      <button onclick="submitBooking()" id="confirmBookBtn" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-3 rounded-xl font-bold text-sm shadow">
+        Confirm Appointment Booking
+      </button>
+    </div>
+  </div>
+
+  <!-- FOOTER & DPDP DATA DELETION TRIGGER -->
+  <footer class="max-w-4xl mx-auto px-4 mt-10 pt-6 border-t border-slate-200 text-center text-xs text-slate-500 space-y-2">
+    <p>⚡ <strong>QuickBook India MVP</strong> — Built for Indian Businesses & Customers</p>
+    <button onclick="requestDataDeletion()" class="text-indigo-600 underline font-medium">
+      Privacy Policy & Request Account/Data Deletion (DPDP Act)
+    </button>
+  </footer>
+
+  <!-- APPLICATION LOGIC -->
+  <script>
+    // =========================================================================
+    // PASTE YOUR SUPABASE URL AND ANON KEY RIGHT BELOW BETWEEN THE QUOTES:
+    // =========================================================================
+    const SUPABASE_URL = "PASTE_YOUR_SUPABASE_URL_HERE";https://supabase.com/dashboard/project/mzdccjqhsdgndqhnkluu
+    const SUPABASE_ANON_KEY = "PASTE_YOUR_SUPABASE_ANON_KEY_HERE";https://mzdccjqhsdgndqhnkluu.supabase.co
+
+    const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    let currentLang = 'en';
+    let categoriesData = [];
+    let businessesData = [];
+    let servicesData = [];
+    let activeBookingBiz = null;
+    let lastAttemptTime = 0;
+
+    const i18n = {
+      en: {
+        tab_customer: "Customer",
+        tab_mybookings: "My Bookings",
+        tab_owner: "Business Owner",
+        tab_staff: "Staff",
+        tab_admin: "Admin",
+        find_title: "Find & Book Appointments Near You",
+        lookup_title: "Check Your Booking Status",
+        owner_panel_title: "Business Owner Dashboard",
+        book_btn: "Book Appointment"
+      },
+      hi: {
+        tab_customer: "ग्राहक (खोजें)",
+        tab_mybookings: "मेरी बुकिंग",
+        tab_owner: "बिज़नेस पैनल",
+        tab_staff: "स्टाफ",
+        tab_admin: "एडमिन",
+        find_title: "अपने पास अपॉइंटमेंट खोजें और बुक करें",
+        lookup_title: "अपनी बुकिंग का स्टेटस देखें",
+        owner_panel_title: "बिज़नेस ओनर डैशबोर्ड",
+        book_btn: "अपॉइंटमेंट बुक करें"
+      }
+    };
+
+    function showStatus(msg, isError = false) {
+      const banner = document.getElementById('statusBanner');
+      const box = document.getElementById('statusBox');
+      const text = document.getElementById('statusText');
+      banner.classList.remove('hidden');
+      box.className = isError
+        ? "p-3 rounded-lg text-sm font-medium flex justify-between items-center bg-red-100 text-red-800 border border-red-300"
+        : "p-3 rounded-lg text-sm font-medium flex justify-between items-center bg-emerald-100 text-emerald-800 border border-emerald-300";
+      text.textContent = msg;
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function hideStatus() {
+      document.getElementById('statusBanner').classList.add('hidden');
+    }
+
+    function toggleLang() {
+      currentLang = currentLang === 'en' ? 'hi' : 'en';
+      document.querySelectorAll('[data-i18n]').forEach(el => {
+        const key = el.getAttribute('data-i18n');
+        if (i18n[currentLang][key]) el.textContent = i18n[currentLang][key];
+      });
+      populateCategoryDropdowns();
+      renderBusinesses();
+    }
+
+    function switchTab(tab) {
+      ['customer', 'mybookings', 'owner', 'staff', 'admin'].forEach(t => {
+        document.getElementById('view-' + t).classList.add('hidden');
+        const btn = document.getElementById('tabBtn-' + t);
+        btn.classList.remove('border-white', 'text-white', 'font-bold');
+        btn.classList.add('border-transparent');
+      });
+      document.getElementById('view-' + tab).classList.remove('hidden');
+      const activeBtn = document.getElementById('tabBtn-' + tab);
+      activeBtn.classList.add('border-white', 'text-white', 'font-bold');
+      activeBtn.classList.remove('border-transparent');
+
+      if (tab === 'owner') loadOwnerDashboard();
+      if (tab === 'staff') loadStaffView();
+      if (tab === 'admin') loadAdminView();
+    }
+
+    async function initApp() {
+      if (SUPABASE_URL.includes("PASTE_YOUR")) {
+        showStatus("⚠️ Setup Required: Please paste your SUPABASE_URL and SUPABASE_ANON_KEY inside index.html.", true);
+        return;
+      }
+      const today = new Date().toISOString().split('T')[0];
+      document.getElementById('modalDate').value = today;
+      document.getElementById('modalDate').min = today;
+
+      const [catRes, bizRes, srvRes] = await Promise.all([
+        db.from('categories').select('*').order('id'),
+        db.from('businesses').select('*').order('created_at', { ascending: false }),
+        db.from('services').select('*')
+      ]);
+
+      if (catRes.error) return showStatus("Database error: " + catRes.error.message, true);
+      categoriesData = catRes.data || [];
+      businessesData = bizRes.data || [];
+      servicesData = srvRes.data || [];
+
+      populateCategoryDropdowns();
+      populateBusinessSelectors();
+      renderBusinesses();
+    }
+
+    function populateCategoryDropdowns() {
+      const filterEl = document.getElementById('filterCategory');
+      const regEl = document.getElementById('regBizCategory');
+      const currentFilter = filterEl.value;
+
+      filterEl.innerHTML = `<option value="">${currentLang === 'en' ? 'All Categories (10)' : 'सभी श्रेणियां (10)'}</option>`;
+      regEl.innerHTML = '';
+
+      categoriesData.forEach(c => {
+        const label = `${c.icon} ${currentLang === 'en' ? c.name_en : c.name_hi}`;
+        filterEl.innerHTML += `<option value="${c.slug}">${label}</option>`;
+        regEl.innerHTML += `<option value="${c.slug}">${label}</option>`;
+      });
+      filterEl.value = currentFilter;
+    }
+
+    function populateBusinessSelectors() {
+      const ownerSel = document.getElementById('ownerBusinessSelect');
+      const staffSel = document.getElementById('staffBusinessSelect');
+      ownerSel.innerHTML = '';
+      staffSel.innerHTML = '';
+      businessesData.forEach(b => {
+        const opt = `<option value="${b.id}">${b.name} (${b.city} - ${b.pincode})</option>`;
+        ownerSel.innerHTML += opt;
+        staffSel.innerHTML += opt;
+      });
+    }
+
+    function renderBusinesses() {
+      const listEl = document.getElementById('businessList');
+      const catFilter = document.getElementById('filterCategory').value;
+      const locFilter = document.getElementById('filterLocation').value.trim().toLowerCase();
+      const searchFilter = document.getElementById('filterSearch').value.trim().toLowerCase();
+
+      const filtered = businessesData.filter(b => {
+        const bizServices = servicesData.filter(s => s.business_id === b.id);
+        const matchCat = !catFilter || b.category_slug === catFilter;
+        const matchLoc = !locFilter || b.city.toLowerCase().includes(locFilter) || b.pincode.includes(locFilter);
+        const matchSearch = !searchFilter ||
+          b.name.toLowerCase().includes(searchFilter) ||
+          bizServices.some(s => s.name.toLowerCase().includes(searchFilter));
+        return matchCat && matchLoc && matchSearch;
+      });
+
+      if (filtered.length === 0) {
+        listEl.innerHTML = `<div class="bg-white p-6 rounded-xl text-center text-slate-500 text-sm border">No matching businesses found. Try clearing filters or add a business in the Business Owner tab!</div>`;
+        return;
+      }
+
+      listEl.innerHTML = filtered.map(b => {
+        const cat = categoriesData.find(c => c.slug === b.category_slug) || { icon: '📅', name_en: b.category_slug, name_hi: b.category_slug };
+        const bizServices = servicesData.filter(s => s.business_id === b.id);
+        const servicesHtml = bizServices.length > 0
+          ? bizServices.map(s => `<span class="inline-block bg-slate-100 text-slate-700 text-xs px-2.5 py-1 rounded-md mr-1.5 mb-1.5 border border-slate-200">${s.name} • <strong>₹${s.price_inr}</strong> (${s.duration_mins}m)</span>`).join('')
+          : `<span class="text-xs text-slate-400 italic">No services listed yet</span>`;
+
+        return `
+          <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex flex-col sm:flex-row justify-between gap-4">
+            <div class="space-y-1.5">
+              <div class="flex items-center gap-2">
+                <span class="text-xs font-semibold bg-indigo-50 text-indigo-700 px-2.5 py-0.5 rounded-full border border-indigo-200">
+                  ${cat.icon} ${currentLang === 'en' ? cat.name_en : cat.name_hi}
+                </span>
+                <span class="text-xs text-emerald-700 font-medium">✓ Verified</span>
+              </div>
+              <h3 class="font-bold text-base text-slate-900">${b.name}</h3>
+              <p class="text-xs text-slate-600">📍 ${b.address}, <strong>${b.city} - ${b.pincode}</strong></p>
+              <p class="text-xs text-slate-500">🕒 Hours: ${b.open_time} to ${b.close_time} (${b.working_days})</p>
+              <div class="pt-1">${servicesHtml}</div>
+            </div>
+            <div class="flex sm:flex-col justify-end gap-2 shrink-0">
+              <button onclick="openBookingModal('${b.id}')" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-4 py-2.5 rounded-lg shadow-sm">
+                ${i18n[currentLang].book_btn}
+              </button>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    // ==================== BOOKING WORKFLOW & DOUBLE-BOOKING PROTECTION ====================
+    async function openBookingModal(bizId) {
+      activeBookingBiz = businessesData.find(b => b.id === bizId);
+      const bizServices = servicesData.filter(s => s.business_id === bizId);
+      if (bizServices.length === 0) {
+        return showStatus("This business hasn't added any bookable services yet. Add one in the Business Owner tab!", true);
+      }
+
+      document.getElementById('modalBizName').textContent = activeBookingBiz.name;
+      document.getElementById('modalBizMeta').textContent = `${activeBookingBiz.address}, ${activeBookingBiz.city} (${activeBookingBiz.pincode})`;
+
+      const sel = document.getElementById('modalServiceSelect');
+      sel.innerHTML = bizServices.map(s => `<option value="${s.id}">${s.name} — ₹${s.price_inr} (${s.duration_mins} mins)</option>`).join('');
+
+      document.getElementById('bookingModal').classList.remove('hidden');
+      await loadAvailableSlots();
+    }
+
+    function closeBookingModal() {
+      document.getElementById('bookingModal').classList.add('hidden');
+    }
+
+    async function loadAvailableSlots() {
+      if (!activeBookingBiz) return;
+      const dateVal = document.getElementById('modalDate').value;
+      const grid = document.getElementById('modalSlotsGrid');
+      document.getElementById('selectedSlotTime').value = '';
+      grid.innerHTML = `<p class="col-span-3 text-xs text-slate-400">Checking live availability...</p>`;
+
+      const { data: takenBookings } = await db
+        .from('bookings')
+        .select('slot_time, status')
+        .eq('business_id', activeBookingBiz.id)
+        .eq('booking_date', dateVal)
+        .in('status', ['pending', 'confirmed']);
+
+      const takenSet = new Set((takenBookings || []).map(b => b.slot_time));
+
+      const openHour = parseInt((activeBookingBiz.open_time || "09:00").split(':')[0], 10);
+      const closeHour = parseInt((activeBookingBiz.close_time || "20:00").split(':')[0], 10);
+      const slots = [];
+      for (let h = openHour; h < closeHour; h++) {
+        slots.push(`${String(h).padStart(2, '0')}:00`);
+        slots.push(`${String(h).padStart(2, '0')}:30`);
+      }
+
+      grid.innerHTML = slots.map(slot => {
+        const isTaken = takenSet.has(slot);
+        if (isTaken) {
+          return `<button disabled class="bg-slate-100 text-slate-400 border border-slate-200 rounded-lg py-2 text-xs font-medium line-through cursor-not-allowed">${slot} (Booked)</button>`;
+        }
+        return `<button type="button" onclick="selectSlot(this, '${slot}')" class="slot-btn bg-white hover:bg-indigo-50 text-slate-700 border border-slate-300 rounded-lg py-2 text-xs font-semibold">${slot}</button>`;
+      }).join('');
+    }
+
+    function selectSlot(btn, slot) {
+      document.querySelectorAll('.slot-btn').forEach(b => {
+        b.className = "slot-btn bg-white hover:bg-indigo-50 text-slate-700 border border-slate-300 rounded-lg py-2 text-xs font-semibold";
+      });
+      btn.className = "slot-btn bg-indigo-600 text-white border border-indigo-600 rounded-lg py-2 text-xs font-bold shadow-sm";
+      document.getElementById('selectedSlotTime').value = slot;
+    }
+
+    async function submitBooking() {
+      // Rate limit check (prevent rapid spam clicks)
+      if (Date.now() - lastAttemptTime < 4000) {
+        return showStatus("Please wait a few seconds before submitting again.", true);
+      }
+
+      const serviceId = document.getElementById('modalServiceSelect').value;
+      const bookingDate = document.getElementById('modalDate').value;
+      const slotTime = document.getElementById('selectedSlotTime').value;
+      const customerName = document.getElementById('custName').value.trim();
+      const customerPhone = document.getElementById('custPhone').value.trim();
+      const notes = document.getElementById('custNotes').value.trim();
+      const consent = document.getElementById('custConsent').checked;
+
+      if (!slotTime) return alert("Please tap an available time slot.");
+      if (customerName.length < 2) return alert("Please enter your full name.");
+      if (!/^[6-9][0-9]{9}$/.test(customerPhone)) return alert("Please enter a valid 10-digit Indian mobile number (starting with 6, 7, 8, or 9).");
+      if (!consent) return alert("Please check the privacy consent box to proceed.");
+
+      lastAttemptTime = Date.now();
+
+      const { error } = await db.from('bookings').insert([{
+        business_id: activeBookingBiz.id,
+        service_id: serviceId,
+        customer_name: customerName,
+        customer_phone: customerPhone,
+        booking_date: bookingDate,
+        slot_time: slotTime,
+        notes: notes,
+        consent_given: true,
+        status: 'pending'
+      }]);
+
+      if (error) {
+        if (error.code === '23505') {
+          showStatus("⚠️ That time slot was just booked by someone else! Please pick another slot.", true);
+          loadAvailableSlots();
+          return;
+        }
+        return showStatus("Booking error: " + error.message, true);
+      }
+
+      closeBookingModal();
+      const waMsg = encodeURIComponent(`Hi ${activeBookingBiz.name}, I have requested an appointment on QuickBook India for ${bookingDate} at ${slotTime}. Name: ${customerName} (${customerPhone}).`);
+      showStatus(`✅ Appointment Requested for ${bookingDate} at ${slotTime}!`);
+      document.getElementById('lookupPhone').value = customerPhone;
+      switchTab('mybookings');
+      loadCustomerBookings();
+      window.open(`https://wa.me/91${activeBookingBiz.phone}?text=${waMsg}`, '_blank');
+    }
+
+    // ==================== CUSTOMER BOOKING LOOKUP ====================
+    async function loadCustomerBookings() {
+      const phone = document.getElementById('lookupPhone').value.trim();
+      const container = document.getElementById('customerBookingsList');
+      if (!/^[6-9][0-9]{9}$/.test(phone)) {
+        container.innerHTML = `<p class="text-xs text-red-600">Please enter a valid 10-digit mobile number.</p>`;
+        return;
+      }
+
+      const { data, error } = await db
+        .from('bookings')
+        .select('*')
+        .eq('customer_phone', phone)
+        .order('booking_date', { ascending: false });
+
+      if (error || !data || data.length === 0) {
+        container.innerHTML = `<div class="bg-white p-4 rounded-xl border text-xs text-slate-500">No bookings found for ${phone}.</div>`;
+        return;
+      }
+
+      container.innerHTML = data.map(bk => {
+        const biz = businessesData.find(b => b.id === bk.business_id) || { name: 'Business', phone: '' };
+        const srv = servicesData.find(s => s.id === bk.service_id) || { name: 'Service', price_inr: 0 };
+        return `
+          <div class="bg-white p-4 rounded-xl border border-slate-200 flex justify-between items-center">
+            <div class="space-y-1">
+              <span class="text-xs font-bold uppercase px-2 py-0.5 rounded bg-slate-100">${bk.status}</span>
+              <h4 class="font-bold text-sm">${biz.name} — ${srv.name} (₹${srv.price_inr})</h4>
+              <p class="text-xs text-slate-600">📅 ${bk.booking_date} at <strong>${bk.slot_time}</strong></p>
+            </div>
+            ${bk.status !== 'cancelled' && bk.status !== 'completed' ? `
+              <button onclick="updateBookingStatus('${bk.id}', 'cancelled', true)" class="text-xs bg-red-50 text-red-600 border border-red-200 px-3 py-1.5 rounded-lg font-semibold">Cancel</button>
+            ` : ''}
+          </div>
+        `;
+      }).join('');
+    }
+
+    // ==================== BUSINESS OWNER ACTIONS ====================
+    async function loadOwnerDashboard() {
+      const bizId = document.getElementById('ownerBusinessSelect').value;
+      const listEl = document.getElementById('ownerBookingsList');
+      if (!bizId) return;
+
+      const { data } = await db
+        .from('bookings')
+        .select('*')
+        .eq('business_id', bizId)
+        .order('booking_date', { ascending: true });
+
+      if (!data || data.length === 0) {
+        listEl.innerHTML = `<p class="text-xs text-slate-400 py-4">No appointments yet for this business. Try making a test booking from the Customer tab!</p>`;
+        return;
+      }
+
+      listEl.innerHTML = data.map(bk => {
+        const srv = servicesData.find(s => s.id === bk.service_id) || { name: 'Service', price_inr: 0 };
+        const waText = encodeURIComponent(`Hello ${bk.customer_name}, your appointment for ${srv.name} on ${bk.booking_date} at ${bk.slot_time} is ${bk.status.toUpperCase()}. - QuickBook India`);
+        return `
+          <div class="p-3 rounded-lg border border-slate-200 bg-slate-50 flex flex-col sm:flex-row justify-between gap-2">
+            <div>
+              <span class="text-xs font-bold uppercase px-2 py-0.5 rounded bg-indigo-100 text-indigo-800">${bk.status}</span>
+              <p class="font-bold text-sm mt-1">${bk.customer_name} (+91 ${bk.customer_phone})</p>
+              <p class="text-xs text-slate-600">${srv.name} (₹${srv.price_inr}) • <strong>${bk.booking_date} at ${bk.slot_time}</strong></p>
+              ${bk.notes ? `<p class="text-xs text-slate-500 italic">Note: ${bk.notes}</p>` : ''}
+            </div>
+            <div class="flex flex-wrap items-center gap-1.5">
+              <button onclick="updateBookingStatus('${bk.id}', 'confirmed')" class="bg-emerald-600 text-white text-xs px-2.5 py-1.5 rounded font-semibold">Confirm</button>
+              <button onclick="updateBookingStatus('${bk.id}', 'completed')" class="bg-blue-600 text-white text-xs px-2.5 py-1.5 rounded font-semibold">Complete</button>
+              <button onclick="updateBookingStatus('${bk.id}', 'cancelled')" class="bg-red-600 text-white text-xs px-2.5 py-1.5 rounded font-semibold">Cancel</button>
+              <a href="https://wa.me/91${bk.customer_phone}?text=${waText}" target="_blank" class="bg-green-500 text-white text-xs px-2.5 py-1.5 rounded font-semibold">💬 WhatsApp</a>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    async function updateBookingStatus(bookingId, newStatus, isCustomer = false) {
+      const { error } = await db
+        .from('bookings')
+        .update({ status: newStatus, updated_at: new Date().toISOString() })
+        .eq('id', bookingId);
+
+      if (error) return showStatus("Could not update status: " + error.message, true);
+      showStatus(`Booking status updated to ${newStatus.toUpperCase()}`);
+      if (isCustomer) loadCustomerBookings();
+      else loadOwnerDashboard();
+    }
+
+    async function addService() {
+      const bizId = document.getElementById('ownerBusinessSelect').value;
+      const name = document.getElementById('newServiceName').value.trim();
+      const duration = parseInt(document.getElementById('newServiceDuration').value, 10);
+      const price = parseInt(document.getElementById('newServicePrice').value, 10);
+
+      if (!name || isNaN(duration) || isNaN(price)) return showStatus("Please fill service name, duration, and price in ₹.", true);
+
+      const { error } = await db.from('services').insert([{
+        business_id: bizId,
+        name: name,
+        duration_mins: duration,
+        price_inr: price
+      }]);
+
+      if (error) return showStatus("Error adding service: " + error.message, true);
+      document.getElementById('newServiceName').value = '';
+      document.getElementById('newServicePrice').value = '';
+      showStatus("✅ Service added! It is now live for customers.");
+      await initApp();
+    }
+
+    async function registerBusiness() {
+      const name = document.getElementById('regBizName').value.trim();
+      const category_slug = document.getElementById('regBizCategory').value;
+      const owner_email = document.getElementById('regBizEmail').value.trim();
+      const phone = document.getElementById('regBizPhone').value.trim();
+      const city = document.getElementById('regBizCity').value.trim();
+      const pincode = document.getElementById('regBizPincode').value.trim();
+      const address = document.getElementById('regBizAddress').value.trim();
+      const open_time = document.getElementById('regBizOpen').value || '09:00';
+      const close_time = document.getElementById('regBizClose').value || '20:00';
+
+      if (!name || !owner_email || !city || !address) return showStatus("Please fill all required business fields.", true);
+      if (!/^[6-9][0-9]{9}$/.test(phone)) return showStatus("Enter a valid 10-digit Indian phone number.", true);
+      if (!/^[1-9][0-9]{5}$/.test(pincode)) return showStatus("Enter a valid 6-digit Indian PIN code.", true);
+
+      const { error } = await db.from('businesses').insert([{
+        name, category_slug, owner_email, phone, city, pincode, address, open_time, close_time
+      }]);
+
+      if (error) return showStatus("Error registering business: " + error.message, true);
+      showStatus("🎉 Business Registered! Now add your first service above.");
+      await initApp();
+    }
+
+    // ==================== STAFF & ADMIN VIEWS ====================
+    async function loadStaffView() {
+      const bizId = document.getElementById('staffBusinessSelect').value;
+      const listEl = document.getElementById('staffList');
+      if (!bizId) return;
+      const { data } = await db.from('staff').select('*').eq('business_id', bizId);
+      if (!data || data.length === 0) {
+        listEl.innerHTML = `<p class="text-xs text-slate-400">No staff members added for this business yet.</p>`;
+        return;
+      }
+      listEl.innerHTML = data.map(st => `
+        <div class="p-2.5 bg-slate-50 border rounded-lg flex justify-between text-xs">
+          <span><strong>${st.name}</strong> — ${st.role_title}</span>
+          <span class="text-emerald-600 font-semibold">Active</span>
+        </div>
+      `).join('');
+    }
+
+    async function addStaffMember() {
+      const bizId = document.getElementById('staffBusinessSelect').value;
+      const name = document.getElementById('newStaffName').value.trim();
+      const role_title = document.getElementById('newStaffRole').value.trim() || 'Specialist';
+      if (!name) return;
+      await db.from('staff').insert([{ business_id: bizId, name, role_title }]);
+      document.getElementById('newStaffName').value = '';
+      loadStaffView();
+    }
+
+    async function loadAdminView() {
+      const { count: bkCount } = await db.from('bookings').select('*', { count: 'exact', head: true });
+      const { data: delReqs } = await db.from('deletion_requests').select('*').order('requested_at', { ascending: false });
+
+      document.getElementById('adminStats').innerHTML = `
+        <div class="p-3 bg-indigo-50 rounded-lg"><p class="text-lg font-bold text-indigo-700">${businessesData.length}</p><p class="text-xs text-slate-600">Businesses</p></div>
+        <div class="p-3 bg-emerald-50 rounded-lg"><p class="text-lg font-bold text-emerald-700">${servicesData.length}</p><p class="text-xs text-slate-600">Services</p></div>
+        <div class="p-3 bg-amber-50 rounded-lg"><p class="text-lg font-bold text-amber-700">${bkCount || 0}</p><p class="text-xs text-slate-600">Bookings</p></div>
+      `;
+
+      const delEl = document.getElementById('adminDeletionList');
+      delEl.innerHTML = (delReqs && delReqs.length > 0)
+        ? delReqs.map(d => `<div class="p-2 border rounded bg-slate-50">Phone: <strong>${d.phone}</strong> — Reason: ${d.reason || 'Requested deletion'}</div>`).join('')
+        : `<p class="text-slate-400">No pending data deletion requests.</p>`;
+    }
+
+    async function requestDataDeletion() {
+      const phone = prompt("DPDP Act Data Deletion: Enter your 10-digit phone number to request deletion of your booking records:");
+      if (!phone) return;
+      if (!/^[6-9][0-9]{9}$/.test(phone.trim())) return alert("Please enter a valid 10-digit phone number.");
+      await db.from('deletion_requests').insert([{ phone: phone.trim(), reason: 'User initiated via footer' }]);
+      showStatus("Your data deletion request has been logged for the Platform Admin.");
+    }
+
+    initApp();
+  </script>
+</body>
+</html>
